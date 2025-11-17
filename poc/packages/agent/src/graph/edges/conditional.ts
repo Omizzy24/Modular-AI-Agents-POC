@@ -13,7 +13,7 @@ export function validationRouter(state: GraphStateType): string {
   });
 
   if (state.validationResult?.isValid) {
-    return 'researchNode';  // Changed from 'llmProcessor'
+    return 'researchNode';
   }
   return 'responseFormatter';
 }
