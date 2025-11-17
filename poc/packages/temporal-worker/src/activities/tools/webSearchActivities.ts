@@ -1,5 +1,6 @@
 import { Context } from '@temporalio/activity';
 import { createLogger } from '@poc/shared';
+import { TavilySearchAPIWrapper } from '@langchain/tavily';
 
 const logger = createLogger('temporal:activity:webSearch');
 
@@ -11,41 +12,52 @@ interface SearchResult {
 }
 
 /**
- * Fetch search results (simulated)
+ * Fetch search results using Tavily API
  */
 export async function fetchSearchResultsActivity(
   query: string,
   maxResults: number
 ): Promise<SearchResult[]> {
   const { info } = Context.current();
-  logger.info('Fetching search results', { query, maxResults, workflowId: info.workflowExecution.workflowId });
+  logger.info('Fetching search results from Tavily', { query, maxResults, workflowId: info.workflowExecution.workflowId });
 
-  // Simulate search delay
-  await new Promise(resolve => setTimeout(resolve, 500));
+  try {
+    // Initialize Tavily API wrapper
+    const tavily = new TavilySearchAPIWrapper({
+      tavilyApiKey: process.env.TAVILY_API_KEY,
+    });
 
-  // Mock search results based on query
-  const results: SearchResult[] = [
-    {
-      title: `${query} - Official League Stats`,
-      snippet: `Comprehensive statistics and data for ${query}`,
-      source: 'official-league.com',
-      relevance: 0.95
-    },
-    {
-      title: `${query} Analysis - Sports Insights`,
-      snippet: `Expert analysis and breakdown of ${query}`,
-      source: 'sports-insights.com',
-      relevance: 0.87
-    },
-    {
-      title: `${query} Historical Data`,
-      snippet: `Historical performance data for ${query}`,
-      source: 'stats-database.com',
-      relevance: 0.82
-    }
-  ];
+    // Execute search
+    const response = await tavily.rawResults({
+      query: query,
+      maxResults: maxResults,
+    });
 
-  return results.slice(0, maxResults);
+    // Extract results array from response
+    const tavilyResults = response.results || [];
+
+    // Map Tavily results to our SearchResult format
+    const results: SearchResult[] = tavilyResults.map((result: any, index: number) => ({
+      title: result.title || 'Untitled',
+      snippet: result.content || result.snippet || '',
+      source: result.url || 'unknown',
+      relevance: result.score !== undefined ? result.score : (1.0 - (index * 0.05)) // Use score if available, otherwise decreasing relevance
+    }));
+
+    logger.info('Successfully fetched Tavily results', { count: results.length });
+    return results;
+
+  } catch (error) {
+    logger.error('Error fetching Tavily results', { error });
+
+    // Fallback to basic results on error
+    return [{
+      title: `Search for: ${query}`,
+      snippet: 'Unable to fetch real-time results. Please check API configuration.',
+      source: 'system',
+      relevance: 0.5
+    }];
+  }
 }
 
 /**
