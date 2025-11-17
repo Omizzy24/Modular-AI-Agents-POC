@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for Temporal
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:1.22.4
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres
+    ports:
+      - "7233:7233"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --spider -q http://localhost:7233 2>&1 | grep -q 'HTTP request sent' || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  # Temporal Web UI
+  temporal-ui:
+    image: temporalio/ui:2.22.3
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    ports:
+      - "8080:8080"
+
+  # Temporal Worker
+  temporal-worker:
+    build:
+      context: .
+      dockerfile: docker/temporal-worker.Dockerfile
+    depends_on:
+      - temporal
+    environment:
+      - NODE_ENV=production
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+      - TEMPORAL_TASK_QUEUE=ai-orchestration-queue
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-ai-orchestration-poc}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # BFF Service
+  bff:
+    build:
+      context: .
+      dockerfile: docker/bff.Dockerfile
+    depends_on:
+      - temporal
+      - temporal-worker
+    environment:
+      - NODE_ENV=production
+      - BFF_PORT=3000
+      - BFF_HOST=0.0.0.0
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+      - TEMPORAL_TASK_QUEUE=ai-orchestration-queue
+      - LOG_LEVEL=info
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: ai-orchestration-network

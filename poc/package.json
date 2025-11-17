@@ -1,0 +1,26 @@
+{
+  "name": "ai-orchestration-poc",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:shared": "npm run build --workspace=@poc/shared",
+    "build:agent": "npm run build --workspace=@poc/agent",
+    "build:temporal": "npm run build --workspace=@poc/temporal-worker",
+    "build:bff": "npm run build --workspace=@poc/bff",
+    "test": "npm run test --workspaces --if-present",
+    "clean": "rm -rf packages/*/dist packages/*/node_modules node_modules",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.7.0",
+    "vitest": "^1.2.0"
+  }
+}
