@@ -5,7 +5,7 @@ const logger = createLogger('agent:edges');
 
 /**
  * Conditional edge after validation
- * Routes to either LLM processing or error formatting
+ * Routes to research node or error formatting
  */
 export function validationRouter(state: GraphStateType): string {
   logger.debug('Routing from validation node', {
@@ -13,8 +13,47 @@ export function validationRouter(state: GraphStateType): string {
   });
 
   if (state.validationResult?.isValid) {
-    return 'llmProcessor';
+    return 'researchNode';  // Changed from 'llmProcessor'
   }
+  return 'responseFormatter';
+}
+
+/**
+ * NEW: Router from research to synthesis
+ * Could implement cycling logic here if needed
+ */
+export function researchRouter(state: GraphStateType): string {
+  logger.debug('Routing from research node', {
+    hasResearchResults: !!state.researchResults,
+    hasError: !!state.error
+  });
+
+  if (state.error) {
+    return 'responseFormatter';
+  }
+
+  // For POC, always go to synthesis
+  // In production, could check if more research needed and cycle back
+  return 'synthesisNode';
+}
+
+/**
+ * NEW: Router from synthesis to guardrails
+ */
+export function synthesisRouter(state: GraphStateType): string {
+  logger.debug('Routing from synthesis node', {
+    enableGuardrails: state.input.settings?.enableGuardrails,
+    hasError: !!state.error
+  });
+
+  if (state.error) {
+    return 'responseFormatter';
+  }
+
+  if (state.input.settings?.enableGuardrails !== false) {
+    return 'guardrail';
+  }
+
   return 'responseFormatter';
 }
 

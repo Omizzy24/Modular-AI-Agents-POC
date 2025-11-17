@@ -9,7 +9,8 @@ const router = Router();
 
 /**
  * POST /api/agent/execute
- * Execute the agent workflow with the provided input
+ * Execute the agent workflow with hybrid architecture
+ * Uses agentOrchestrationWorkflow (Layer 1: session durability)
  */
 router.post('/execute', validateRequest(AgentInputSchema), async (req, res, next) => {
   try {

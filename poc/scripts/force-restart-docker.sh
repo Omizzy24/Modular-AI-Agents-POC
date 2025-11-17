@@ -36,7 +36,7 @@ for i in {1..30}; do
         echo "🎉 Success! Docker is running."
         echo ""
         echo "Next steps:"
-        echo "  cd /Users/ogarro/talks/js_nation_us_2025/poc"
+        echo "  cd poc"
         echo "  docker-compose up -d"
         exit 0
     fi

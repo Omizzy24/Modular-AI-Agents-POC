@@ -1,5 +1,5 @@
 import { Connection, Client } from '@temporalio/client';
-import { agentWorkflow } from './workflows/agentWorkflow';
+import { agentOrchestrationWorkflow } from './workflows/agentOrchestrationWorkflow';
 import { WorkflowInput, WorkflowOutput } from '@poc/shared';
 import { createLogger } from '@poc/shared';
 
@@ -33,20 +33,22 @@ export async function getTemporalClient(): Promise<Client> {
 }
 
 /**
- * Execute agent workflow via Temporal
+ * Execute agent workflow via Temporal (Hybrid Architecture)
  */
 export async function executeAgentWorkflow(
   input: WorkflowInput
 ): Promise<WorkflowOutput> {
   const client = await getTemporalClient();
 
-  const handle = await client.workflow.start(agentWorkflow, {
+  logger.info('Starting agent orchestration workflow', { requestId: input.requestId });
+
+  const handle = await client.workflow.start(agentOrchestrationWorkflow, {
     args: [input],
     taskQueue: process.env.TEMPORAL_TASK_QUEUE || 'ai-orchestration-queue',
     workflowId: input.requestId
   });
 
-  logger.info('Started workflow', {
+  logger.info('Workflow started', {
     workflowId: handle.workflowId,
     requestId: input.requestId
   });

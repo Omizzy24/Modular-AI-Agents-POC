@@ -47,13 +47,14 @@ run_test "BFF Health Endpoint" "curl -f http://localhost:3000/health"
 # Test 2: Temporal UI
 run_test "Temporal UI Accessibility" "curl -f http://localhost:8080"
 
-# Test 3: Agent execution with Gemini
+# Test 3: Agent execution with Gemini (triggers tool workflows)
 echo ""
-echo "Testing: Full Agent Execution (with Gemini)..."
+echo "Testing: Full Agent Execution with Tool Invocation (Hybrid Architecture)..."
 RESPONSE=$(curl -s -X POST http://localhost:3000/api/agent/execute \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Test E2E execution",
+    "message": "Verify this claim and provide sources: Stephen Curry has made over 3,500 three-pointers in his career. The New York Knicks are the team that he has scored the most points against.",
+    "userId": "test-user",
     "settings": {
       "enableGuardrails": true
     }
@@ -62,8 +63,15 @@ RESPONSE=$(curl -s -X POST http://localhost:3000/api/agent/execute \
 if echo "$RESPONSE" | jq -e '.success == true' > /dev/null 2>&1; then
   echo -e "${GREEN}✓ PASSED${NC}"
   ((TESTS_PASSED++))
-  echo "Response preview:"
-  echo "$RESPONSE" | jq '.data.model, .data.processedContent' | head -5
+  echo ""
+  echo "  Model: $(echo "$RESPONSE" | jq -r '.data.model')"
+  echo "  Workflow ID: $(echo "$RESPONSE" | jq -r '.workflowId')"
+  echo "  Nodes Executed: $(echo "$RESPONSE" | jq -r '.metadata.nodesExecuted | join(" → ")')"
+  echo ""
+  echo "  Response preview:"
+  echo "$RESPONSE" | jq -r '.data.processedContent' | head -3 | sed 's/^/    /'
+  echo ""
+  echo "  💡 Check Temporal UI (http://localhost:8080) for parent workflow and child tool workflows"
 else
   echo -e "${RED}✗ FAILED${NC}"
   ((TESTS_FAILED++))

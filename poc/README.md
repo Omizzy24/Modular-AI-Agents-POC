@@ -1,34 +1,66 @@
-# AI Orchestration POC: Full-Stack Enterprise AI Architecture with Gemini
+# AI Orchestration POC: Hybrid Two-Layer Architecture with LangGraph + Temporal
 
 ## Overview
 
-This Proof of Concept demonstrates a comprehensive enterprise AI orchestration architecture using:
-- **LangGraph** for modular agent construction
-- **Google Gemini** as the LLM (1.5 Flash)
-- **LangSmith** for observability and tracing
-- **Temporal.io** for durable workflow orchestration
-- **Express** for BFF API layer
-- **Docker Compose** for service orchestration
+This Proof of Concept demonstrates a **hybrid architecture** for AI orchestration using:
+- **LangGraph** for intelligent agent orchestration with cycles and tool binding
+- **Google Gemini** as the LLM (gemini-2.5-flash)
+- **Temporal.io** for two-layer durable workflow orchestration
+- **Express/Node.js** for the BFF API layer
+- **LangSmith** for optional LLM observability and tracing
+- **Docker Compose** for local development environment
 
-## Architecture
+## Architecture: Hybrid Two-Layer Durability
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │────▶│  BFF (API)  │────▶│  Temporal   │
-└─────────────┘     └─────────────┘     └─────────────┘
-                           │                     │
-                           ▼                     ▼
-                    ┌─────────────┐      ┌─────────────┐
-                    │  LangSmith  │      │   Worker    │
-                    └─────────────┘      └─────────────┘
-                                                 │
-                                                 ▼
-                                          ┌─────────────┐
-                                          │  LangGraph  │
-                                          │    Agent    │
-                                          │  (Gemini)   │
-                                          └─────────────┘
+Client (HTTP)
+    ↓
+Express/Node.js BFF (Port 3000)
+├─ Zod validation
+├─ Rate limiting (30 req/min)
+├─ Security (Helmet, CORS)
+└─ Temporal client
+    ↓
+┌──────────────────────────────────────────────┐
+│ LAYER 1: Session-Level Durability (Temporal) │
+│                                              │
+│  agentOrchestrationWorkflow                  │
+│    └─ executeAgentGraphActivity              │
+│       (Wraps entire LangGraph)               │
+└──────────────────────────────────────────────┘
+    ↓
+┌──────────────────────────────────────────────-┐
+│ LangGraph StateGraph Execution                │
+│                                               │
+│  inputValidator → researchNode ⟲              │
+│                         ↓                     │
+│                   [LLM Tool Binding]          │
+│                         ↓                     │
+│                  synthesisNode                │
+│                         ↓                     │
+│                   guardrail                   │
+│                         ↓                     │
+│                 responseFormatter             │
+└──────────────────────────────────────────────-┘
+    ↓
+┌──────────────────────────────────────────────-┐
+│ LAYER 2: Action-Level Durability (Temporal)   │
+│                                               │
+│  LangGraph Tools → Temporal Child Workflows:  │
+│  ├─ web_search → WebSearchWorkflow            │
+│  ├─ verify_stats → StatsVerificationWorkflow  │
+│  └─ calculate_odds → OddsCalculationWorkflow  │
+└──────────────────────────────────────────────-┘
+    ↓
+Google Gemini API (gemini-2.5-flash)
+    ↓
+(Optional) LangSmith Tracing
 ```
+
+**Key Innovation**:
+- **Layer 1** provides session-level durability (one workflow, one activity wrapping entire LangGraph)
+- **Layer 2** provides action-level durability (each tool invocation spawns a durable child workflow)
+- LangGraph maintains full power: cycles, conditional routing, tool binding, LLM-driven tool selection
 
 ## Quick Start
 
@@ -41,7 +73,7 @@ This Proof of Concept demonstrates a comprehensive enterprise AI orchestration a
 
 ```bash
 # 1. Navigate to project directory
-cd /Users/ogarro/talks/js_nation_us_2025/poc
+cd poc
 
 # 2. Run setup script
 ./scripts/setup.sh
@@ -134,7 +166,8 @@ curl -X POST http://localhost:3000/api/agent/execute \
 - **Location**: `packages/agent/src/graph/nodes/guardrail.ts`
 
 ### 5. Durable Execution (Temporal)
-- Each node as a durable activity
+- Agent execution ran as a durable workflow
+- Each tool as a durable activity
 - Automatic retry on failures
 - Workflow state persistence
 - **Dashboard**: http://localhost:8080
